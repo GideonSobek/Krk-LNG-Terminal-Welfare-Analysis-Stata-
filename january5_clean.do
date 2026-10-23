@@ -1,14 +1,14 @@
 *==============================================================================
 * Krk LNG Terminal — Welfare Analysis
 * Cleaned and commented version of January5.log
-* Original raw session log is included separately (January5.log) as a record
+* Original raw session log is included separately (January5.log) in github repo as a record
 * of the actual console output at the time these commands were run.
 *==============================================================================
 
 *------------------------------------------------------------------------------
-* 1. DATA SETUP
+* 1. SETUP
 *------------------------------------------------------------------------------
-import delimited "/Users/gsobek/Desktop/January5.csv"
+import delimited "/Users/gsobek/Desktop/January5.csv" *this is mixed-and-matched data from Eurostat across energy/national stats/income etc
 preserve
 
 encode country, gen(country_id)
@@ -33,19 +33,19 @@ gen ln_gas_elec     = ln(gas_elec)
 gen ln_ren_elec     = ln(ren_elec)
 gen ln_solidff_elec = ln(solidff_elec)
 
+
+* 2. DIFFERENCE-IN-DIFFERENCES
 *------------------------------------------------------------------------------
-* 2. BASELINE DIFFERENCE-IN-DIFFERENCES
-*------------------------------------------------------------------------------
-* Simple DiD, no controls
+* Baseline, no controls
 reg ln_elec_price treated post treated_post, vce(cluster country_id)
 
 * DiD with controls
 reg ln_elec_price treated post treated_post ln_gas_price ln_ren_elec ///
     ln_gas_elec ln_solidff_elec ln_gdp_pc ln_pop, vce(cluster country_id)
 
-* Two-way fixed effects version (country + year FE absorbed)
-* NOTE: pct_elec_* variables below were not in the dataset under that name;
-* the ln_*_elec versions (used in the next line) are the ones that ran.
+* Two-way fixed effects version
+*
+* this is commented out because it is in the .log but I used incorrect var names
 * reghdfe ln_elec_price treated_post ln_gas_price pct_elec_renewables ///
 *     pct_elec_gas pct_elec_solidfossil ln_gdp_pc ln_pop, ///
 *     absorb(country_id year) vce(cluster country_id)
@@ -54,8 +54,8 @@ reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     ln_solidff_elec ln_gdp_pc ln_pop, absorb(country_id year) ///
     vce(cluster country_id)
 
-*------------------------------------------------------------------------------
-* 3. SYNTHETIC CONTROL METHOD
+
+* 3. SYNTHETIC CONTROL METHOD (Abadie 2015)
 *------------------------------------------------------------------------------
 gen treat_id = 1 if country == "Croatia"
 replace treat_id = 0 if treat_id == .
@@ -85,12 +85,12 @@ synth ln_elec_price ln_elec_price(2013) ln_elec_price(2014) ///
     mspeperiod(2013(1)2020) resultsperiod(2013(1)2024) ///
     keep(synth_results.dta) replace fig
 
-* Donor pool candidates explored (kept as comments for reference):
+* Other Donor pool candidates i looked at:
 * Bulgaria, Estonia, Romania, Slovakia, Poland
 * Greece, Romania, Lithuania, Hungary
 
-*------------------------------------------------------------------------------
-* 4. EVENT-STUDY / GAS-PRICE INTERACTION SPECIFICATIONS
+
+* 4. EVENT-STUDY 
 *------------------------------------------------------------------------------
 gen post_krk = (year >= 2021)
 
@@ -99,7 +99,7 @@ reghdfe ln_elec_price c.post_krk##c.ln_gas_price ln_ren_elec ln_gas_elec ///
     vce(cluster country_id)
 
 * Crisis-period interaction (2022-2023 energy crisis)
-gen crisis     = inlist(year, 2022, 2023)
+gen crisis     = inlist(year, 2022, 2023) *this is the Russian Invasion of Ukraine
 gen krk_crisis = post_krk * crisis
 
 reghdfe ln_elec_price post_krk crisis krk_crisis ln_gas_price ln_ren_elec ///
@@ -114,10 +114,11 @@ reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     ln_solidff_elec ln_gdp_pc ln_pop, ///
     absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
 
-*------------------------------------------------------------------------------
-* 5. ROBUSTNESS: ALTERNATIVE DONOR / COMPARISON POOLS
+
+* 5. ROBUSTNESS: COMPARISON POOLS
 *------------------------------------------------------------------------------
 * Balkan / Southeast European countries only
+* This is where the spillover would happen with gas exports
 reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
     "Slovenia", "Bulgaria", "Romania", "Greece", "Hungary"), ///
@@ -162,8 +163,7 @@ reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     "Slovenia", "Latvia", "Lithuania"), ///
     absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
 
-*------------------------------------------------------------------------------
-* 6. ROBUSTNESS: SPECIFICATION VARIANTS (donor pool sensitivity)
+* 6. ROBUSTNESS: SENSITIVITY
 *------------------------------------------------------------------------------
 * Specification 1: All countries
 reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
@@ -208,7 +208,6 @@ reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     "Bulgaria"), absorb(country_id year c.trend#i.country_id) ///
     vce(cluster country_id)
 
-*------------------------------------------------------------------------------
 * 7. STATISTICAL INFERENCE (Croatia + Bulgaria + Estonia + Romania donor pool)
 *------------------------------------------------------------------------------
 * Preferred/final specification for inference
@@ -224,11 +223,9 @@ display "One-sided p-value: " p_onesided
 
 scalar true_effect = _b[treated_post]
 
-* --- Permutation test 1 (exploratory) ---------------------------------------
-* NOTE: this loop did not complete successfully in the original session
-* (a syntax error in the closing brace, and fake_treated_post was undefined
-* going into the results-collection step). Left here, corrected, as a record
-* of the intended permutation-test design; superseded by the corrected
+* --- Permutation test 1 ---------------------------------------
+* NOTE: this loop did not complete successfully in the original session bc of a syntax error
+* Left here, corrected, as a record of the intended permutation-test design; superseded by the corrected
 * version in section 8.
 set seed 12345
 matrix placebo_effects = J(1000, 1, .)
@@ -289,7 +286,7 @@ reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     absorb(country_id year c.trend#i.country_id) cluster(country_id)
 boottest treated_post, cluster(country_id) bootcluster(country_id)
 
-*------------------------------------------------------------------------------
+
 * 8. PERMUTATION TEST (corrected/final version)
 *------------------------------------------------------------------------------
 reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
@@ -330,12 +327,12 @@ forvalues i = 1/`n_perms' {
         "Croatia", "Bulgaria", "Estonia", "Romania"), ///
         absorb(country_id year c.trend#i.country_id) cluster(country_id)
 
-    * Store placebo coefficient
+    * Store the placebo 
     local placebo_c    = _b[fake_treated_post]
     local placebo_se   = _se[fake_treated_post]
     local placebo_t_val = `placebo_c' / `placebo_se'
 
-    * Update results file
+    * Update file
     use `placebo_results', clear
     replace placebo_coef = `placebo_c' in `i'
     replace placebo_t    = `placebo_t_val' in `i'
@@ -346,13 +343,7 @@ forvalues i = 1/`n_perms' {
         display "Completed " `i' " of " `n_perms' " permutations"
     }
 }
-* NOTE: this loop referenced fake_treated_post from the regression above,
-* which used treated_post (not fake_treated_post) as the regressor — so the
-* placebo coefficients were not actually populated in the original session.
-* The regression specification inside the loop should use fake_treated_post
-* in place of treated_post for this test to run as intended.
 
-*------------------------------------------------------------------------------
 * 9. FINAL TREATMENT EFFECT ESTIMATE
 *------------------------------------------------------------------------------
 reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
@@ -369,17 +360,17 @@ scalar krk_upper = r(ub)
 display "Treatment effect (point): " krk_effect
 display "90% CI: [" krk_lower ", " krk_upper "]"
 
+
+* 10. WELFARE ESTIMATION — first pass (EUR/kWh units)
 *------------------------------------------------------------------------------
-* 10. WELFARE CALCULATION — first pass (EUR/kWh units)
-*------------------------------------------------------------------------------
-* Counterfactual prices exist only for Croatia, post-2021
+*Create the counterfactual series
 gen ln_price_cf = .
 replace ln_price_cf = ln(elec_price) - krk_effect if country == "Croatia" & year >= 2021
 gen price_cf      = exp(ln_price_cf) if country == "Croatia" & year >= 2021
 gen price_savings = price_cf - elec_price if country == "Croatia" & year >= 2021
 gen pct_savings   = (price_savings / price_cf) * 100 if country == "Croatia" & year >= 2021
 
-* Annual welfare (millions EUR) — adjust units as needed
+* Annual welfare (millions EUR) 
 gen welfare_annual = price_savings * total_elec * 1000 / 1000000 if country == "Croatia" & year >= 2021
 
 list year elec_price price_cf price_savings pct_savings total_elec welfare_annual ///
@@ -394,10 +385,9 @@ display "Total welfare 2021-2024: EUR" r(mean) " million"
 display "Average annual: EUR" r(mean)/4 " million"
 display ""
 
+* 11. WELFARE CALCULATION REDO (EUR/MWh units)
 *------------------------------------------------------------------------------
-* 11. WELFARE CALCULATION — corrected (EUR/MWh units)
-*------------------------------------------------------------------------------
-* First-pass calculation above mixed price units; redone here in EUR/MWh.
+* Redone here with MWh instd of kWh
 drop ln_price_cf price_cf price_savings pct_savings welfare_annual total_welfare
 
 gen elec_price_mwh = elec_price * 1000 if country == "Croatia" & year >= 2021
@@ -420,7 +410,6 @@ display "=== CORRECTED WELFARE SUMMARY ==="
 display "Total welfare 2021-2024: EUR" r(mean) " million"
 display "Average annual: EUR" r(mean)/4 " million"
 
-*------------------------------------------------------------------------------
 * 12. WELFARE ESTIMATES WITH CONFIDENCE INTERVALS
 *------------------------------------------------------------------------------
 scalar krk_effect              = -.21572997
