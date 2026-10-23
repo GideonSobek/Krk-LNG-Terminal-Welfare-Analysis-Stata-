@@ -118,113 +118,86 @@ reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
 
 
-* 5. ROBUSTNESS: COMPARISON POOLS
+
+* 5. MAIN SPECIFICATIONS (Appendix Table 1)
 *------------------------------------------------------------------------------
-* Balkan / Southeast European countries only
-* This is where the spillover would happen with gas exports
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Slovenia", "Bulgaria", "Romania", "Greece", "Hungary"), ///
-    absorb(country_id year) vce(cluster country_id)
+* Donor pool: synthetic control weights (Section 3) placed weight on Estonia,
+* Latvia, Lithuania, Slovakia, and Slovenia.
+* All models: country FE, year FE, country-specific linear trends,
+* SEs clustered by country (6 clusters).
 
-* Baltic + Romania
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Lithuania", "Latvia", "Romania"), absorb(country_id year) ///
-    vce(cluster country_id)
+local pool inlist(country, "Croatia", "Estonia", "Latvia", "Lithuania", "Slovakia", "Slovenia")
+local fe   absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
 
-* Single-country comparisons
-foreach c in "Slovenia" "Romania" "Bulgaria" "Latvia" {
-    reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-        ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", "`c'"), ///
-        absorb(country_id year) vce(cluster country_id)
-}
+// (1) Gas consumption only
+reghdfe ln_elec_price treated_post ln_total_gas if `pool', `fe'
+estimates store m1
 
-* Same comparisons with country-specific trends added
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Slovenia", "Bulgaria", "Romania", "Greece", "Hungary"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+// (2) + gas price
+reghdfe ln_elec_price treated_post ln_total_gas ln_gas_price if `pool', `fe'
+estimates store m2
 
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Slovenia", "Romania"), absorb(country_id year c.trend#i.country_id) ///
-    vce(cluster country_id)
+// (3) + generation mix
+reghdfe ln_elec_price treated_post ln_total_gas ln_gas_price ln_final_elec ///
+    ln_gas_elec ln_ren_elec ln_solidff_elec if `pool', `fe'
+estimates store m3
 
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Slovenia", "Romania", "Greece"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+// (4) + demographics (full controls)
+reghdfe ln_elec_price treated_post ln_total_gas ln_gas_price ln_final_elec ///
+    ln_gas_elec ln_ren_elec ln_solidff_elec ln_pop ln_gdp_pc if `pool', `fe'
+estimates store m4
 
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Slovenia", "Romania", "Latvia", "Lithuania"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+esttab m1 m2 m3 m4, se star(* 0.10 ** 0.05 *** 0.01) ///
+    keep(treated_post ln_*) stats(N r2 r2_within)
 
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Slovenia", "Latvia", "Lithuania"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
 
-* 6. ROBUSTNESS: SENSITIVITY
+* 6. ROBUSTNESS: ALTERNATIVE COMPARISON POOLS
 *------------------------------------------------------------------------------
-* Specification 1: All countries
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop, ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
-estimates store all_controls
+* Re-estimates the full-control model (4) across alternative donor pools.
+* Pools containing Slovenia, Hungary, or other Krk re-export destinations
+* may be contaminated by spillovers and bias the estimate toward zero.
 
-* Specification 2: Similar gas dependence (within +/- 10% of Croatia's)
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Greece", "Romania", "Lithuania", "Hungary"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+local controls ln_total_gas ln_gas_price ln_final_elec ln_gas_elec ///
+    ln_ren_elec ln_solidff_elec ln_pop ln_gdp_pc
 
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania", "Slovakia"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+// (a) All countries
+reghdfe ln_elec_price treated_post `controls', `fe'
 
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania", "Slovakia", "Poland"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+// (b) Excluding Slovenia (re-export destination)
+reghdfe ln_elec_price treated_post `controls' if inlist(country, "Croatia", ///
+    "Estonia", "Latvia", "Lithuania", "Slovakia"), `fe'
 
-* Specification 4: Regional/geographic grouping
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Romania", "Greece", "Slovenia"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+// (c) Excluding Slovenia (re-export destination)
+reghdfe ln_elec_price treated_post `controls' if inlist(country, "Croatia", ///
+    "Estonia", "Latvia", "Lithuania", "Slovakia", "Slovenia"), `fe'
 
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+// (d) Southeast Europe (spillover-exposed)
+reghdfe ln_elec_price treated_post `controls' if inlist(country, "Croatia", ///
+    "Slovenia", "Bulgaria", "Romania", "Greece", "Hungary"), `fe'
 
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+// (e) Similar gas dependence (within +/- 10% of Croatia)
+reghdfe ln_elec_price treated_post `controls' if inlist(country, "Croatia", ///
+    "Greece", "Romania", "Lithuania", "Hungary"), `fe'
 
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria"), absorb(country_id year c.trend#i.country_id) ///
-    vce(cluster country_id)
+// (f) Alternative pool: Bulgaria, Estonia, Romania
+reghdfe ln_elec_price treated_post `controls' if inlist(country, "Croatia", ///
+    "Bulgaria", "Estonia", "Romania"), `fe'
 
-* 7. STATISTICAL INFERENCE (Croatia + Bulgaria + Estonia + Romania donor pool)
+* 7. STATISTICAL INFERENCE 
 *------------------------------------------------------------------------------
-* Preferred/final specification for inference
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania"), ///
-    absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
+reghdfe ln_elec_price treated_post ln_total_gas ln_gas_price ln_final_elec ///
+    ln_gas_elec ln_ren_elec ln_solidff_elec if `pool', `fe'
 
-* One-sided test (directional hypothesis: Krk terminal lowered prices)
+scalar true_effect = _b[treated_post]
+
+// One-sided test (directional hypothesis: Krk lowered prices)
 scalar t_stat     = _b[treated_post] / _se[treated_post]
 scalar p_onesided = ttail(e(df_r), abs(t_stat))
 display "One-sided p-value: " p_onesided
 
-scalar true_effect = _b[treated_post]
+// 90% CI (used for welfare bounds in Appendix Table 2)
+lincom treated_post, level(90)
+
 
 * --- Permutation test 1 ---------------------------------------
 * NOTE: this loop did not complete successfully in the original session bc of a syntax error
@@ -242,7 +215,7 @@ forvalues i = 1/1000 {
     gen fake_treated_post = fake_treated * fake_post
     quietly reghdfe ln_elec_price fake_treated_post ln_gas_price ln_ren_elec ///
         ln_gas_elec ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, ///
-        "Croatia", "Bulgaria", "Estonia", "Romania"), ///
+        "Croatia", "Estonia", "Lativa", "Lithuania", "Slovakia", "Slovenia"), ///
         absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
     matrix placebo_effects[`i', 1] = _b[fake_treated_post]
     restore
@@ -255,21 +228,21 @@ display "Permutation-based p-value: `p_perm'"
 * 90% CI on the preferred specification
 reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania"), ///
+    "Estonia", "Lativa", "Lithuania", "Slovakia", "Slovenia"), ///
     absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
 lincom treated_post, level(90)
 
 * Strategy 4: interact gas price to detect pass-through vs. level effects
 reghdfe ln_elec_price c.post_krk##c.ln_gas_price ln_ren_elec ln_gas_elec ///
     ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania"), ///
+   "Estonia", "Lativa", "Lithuania", "Slovakia", "Slovenia"), ///
     absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
 test c.post_krk#c.ln_gas_price
 
 * Strategy 5: cross-sectional only (no year FE) — check if any single period differs
 reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania"), absorb(country_id) ///
+    "Estonia", "Lativa", "Lithuania", "Slovakia", "Slovenia"), absorb(country_id) ///
     vce(cluster country_id)
 
 * Effect during the 2022-2023 crisis specifically
@@ -278,23 +251,16 @@ gen treated_crisis = treated * crisis
 
 reghdfe ln_elec_price treated_crisis ln_gas_price ln_ren_elec ln_gas_elec ///
     ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania"), ///
+    "Estonia", "Lativa", "Lithuania", "Slovakia", "Slovenia"), ///
     absorb(country_id year c.trend#i.country_id) vce(cluster country_id)
 
-* Strategy 6: wild cluster bootstrap (small-cluster correction)
-ssc install boottest
-reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
-    ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania"), ///
-    absorb(country_id year c.trend#i.country_id) cluster(country_id)
-boottest treated_post, cluster(country_id) bootcluster(country_id)
 
 
 * 8. PERMUTATION TEST (corrected/final version)
 *------------------------------------------------------------------------------
 reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania"), ///
+    "Estonia", "Lativa", "Lithuania", "Slovakia", "Slovenia"), ///
     absorb(country_id year c.trend#i.country_id) cluster(country_id)
 
 scalar true_coef = _b[treated_post]
@@ -327,7 +293,7 @@ forvalues i = 1/`n_perms' {
     * Run regression with fake treatment
     quietly reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ///
         ln_gas_elec ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, ///
-        "Croatia", "Bulgaria", "Estonia", "Romania"), ///
+        "Croatia", "Estonia", "Lativa", "Lithuania", "Slovakia", "Slovenia"), ///
         absorb(country_id year c.trend#i.country_id) cluster(country_id)
 
     * Store the placebo 
@@ -351,7 +317,7 @@ forvalues i = 1/`n_perms' {
 *------------------------------------------------------------------------------
 reghdfe ln_elec_price treated_post ln_gas_price ln_ren_elec ln_gas_elec ///
     ln_solidff_elec ln_gdp_pc ln_pop if inlist(country, "Croatia", ///
-    "Bulgaria", "Estonia", "Romania"), ///
+    "Estonia", "Lativa", "Lithuania", "Slovakia", "Slovenia"), ///
     absorb(country_id year c.trend#i.country_id) cluster(country_id)
 
 scalar krk_effect = _b[treated_post]
