@@ -10,8 +10,7 @@ for 2021–2024.
   numbered sections (data setup, DiD, synthetic control, robustness checks,
   permutation inference, welfare calculation). Start here.
 - **`January5.log`** — the raw Stata session log this code was extracted
-  from. Kept as a record of the actual console output/results at the time
-  the analysis was run.
+  from. This is not in this repo
 
 ## Notes
 
