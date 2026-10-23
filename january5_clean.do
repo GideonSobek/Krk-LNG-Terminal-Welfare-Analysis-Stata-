@@ -4,6 +4,8 @@
 * Original raw session log is included separately (January5.log) in github repo as a record
 * of the actual console output at the time these commands were run.
 * January 2026
+* Gideon Sobek
+* Lehigh University 
 *==============================================================================
 
 *------------------------------------------------------------------------------
